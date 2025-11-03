@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Test Framework Code Architecture</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        .code-section { background: #f4f4f4; padding: 15px; border-left: 4px solid #007acc; margin: 15px 0; }
+        .code-block { background: #2d3748; color: #e2e8f0; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .highlight { background: #ffeaa7; padding: 2px 4px; border-radius: 3px; }
+        .component { border: 1px solid #ddd; padding: 15px; margin: 15px 0; border-radius: 5px; }
+        h2 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px; }
+        h3 { color: #34495e; }
+        .flow-step { background: #ecf0f1; padding: 10px; margin: 5px 0; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Test Framework Code Architecture</h1>
+
+    <h2>1. 🏗️ Core Components</h2>
+
+    <div class="component">
+        <h3>A. Minimal jQuery Implementation</h3>
+        <p><strong>Purpose:</strong> Provides DOM manipulation without external dependencies</p>
+        <div class="code-block">
+<pre>
+window.$ = function(selector) {
+    return {
+        text: function(value) { /* Get/set text content */ },
+        show: function() { /* Show elements */ },
+        hide: function() { /* Hide elements */ },
+        is: function(state) { /* Check element state */ },
+        val: function(value) { /* Get/set input values */ }
+    };
+};
+</pre>
+        </div>
+        <p><strong>What it does:</strong> Mimics jQuery's basic functionality using native DOM methods</p>
+    </div>
+
+    <div class="component">
+        <h3>B. Test Framework Engine</h3>
+        <p><strong>Purpose:</strong> Provides Jest-like testing functions</p>
+        <div class="code-block">
+<pre>
+// Global test state
+let testSuites = [];
+let currentSuite = null;
+let totalTests = 0;
+let passedTests = 0;
+let failedTests = 0;
+
+// Test organization functions
+function describe(suiteName, suiteFunction) {
+    currentSuite = { name: suiteName, tests: [] };
+    testSuites.push(currentSuite);
+    suiteFunction(); // Execute the test suite
+}
+
+function test(testName, testFunction) {
+    try {
+        testFunction(); // Execute the test
+        currentSuite.tests.push({ name: testName, status: 'pass' });
+        passedTests++;
+    } catch (error) {
+        currentSuite.tests.push({ name: testName, status: 'fail', error: error.message });
+        failedTests++;
+    }
+    totalTests++;
+}
+</pre>
+        </div>
+        <p><strong>What it does:</strong> Tracks test suites, executes tests, captures results</p>
+    </div>
+
+    <div class="component">
+        <h3>C. Assertion Engine</h3>
+        <p><strong>Purpose:</strong> Provides expect() functionality for test assertions</p>
+        <div class="code-block">
+<pre>
+function expect(actual) {
+    return {
+        toBe: function(expected) {
+            if (actual !== expected) {
+                throw new Error(`Expected: ${expected}, Received: ${actual}`);
+            }
+        },
+        toEqual: function(expected) {
+            if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+                throw new Error(`Expected: ${JSON.stringify(expected)}, Received: ${JSON.stringify(actual)}`);
+            }
+        },
+        toContain: function(expected) {
+            if (!actual.includes(expected)) {
+                throw new Error(`Expected "${actual}" to contain "${expected}"`);
+            }
+        }
+    };
+}
+</pre>
+        </div>
+        <p><strong>What it does:</strong> Compares values and throws errors when assertions fail</p>
+    </div>
+
+    <div class="component">
+        <h3>D. Dynamic Test Loader</h3>
+        <p><strong>Purpose:</strong> Loads and executes separate test files</p>
+        <div class="code-block">
+<pre>
+async function loadTestFile(filename) {
+    try {
+        // Fetch the test file content
+        const response = await fetch(`test-files/${filename}`);
+        const code = await response.text();
+        
+        // Execute the JavaScript code
+        eval(code); // This runs the test file code
+        
+        return true;
+    } catch (error) {
+        console.error(`Error loading ${filename}:`, error);
+        return false;
+    }
+}
+</pre>
+        </div>
+        <p><strong>What it does:</strong> Downloads test files and executes them using eval()</p>
+    </div>
+
+    <h2>2. 🔄 Execution Flow</h2>
+
+    <div class="flow-step">
+        <strong>Step 1:</strong> Browser loads <code>enterprise-test-runner.html</code>
+    </div>
+    <div class="flow-step">
+        <strong>Step 2:</strong> JavaScript initializes test framework (describe, test, expect functions)
+    </div>
+    <div class="flow-step">
+        <strong>Step 3:</strong> Loads <code>test-config.js</code> to get list of test files
+    </div>
+    <div class="flow-step">
+        <strong>Step 4:</strong> For each test file:
+        <ul>
+            <li>Fetches file content via HTTP request</li>
+            <li>Executes code using <code>eval()</code></li>
+            <li>Test code calls <code>describe()</code> and <code>test()</code> functions</li>
+        </ul>
+    </div>
+    <div class="flow-step">
+        <strong>Step 5:</strong> Displays results in HTML with CSS styling
+    </div>
+
+    <h2>3. 🧪 How Tests Execute</h2>
+
+    <div class="component">
+        <h3>Example Test Execution:</h3>
+        <div class="code-block">
+<pre>
+// When this code runs in login.test.js:
+describe('Login Form Validation', () => {
+    test('should validate empty username', () => {
+        const isValid = validateLoginForm("", "password123");
+        expect(isValid).toBe(false);
+    });
+});
+
+// Here's what happens:
+1. describe() creates a new test suite object
+2. test() function executes immediately
+3. validateLoginForm() runs (your application code)
+4. expect().toBe() compares values
+5. If assertion fails, throws error
+6. test() catches error and marks test as failed
+7. Results stored in testSuites array
+</pre>
+        </div>
+    </div>
+
+    <h2>4. 🎨 UI Rendering</h2>
+
+    <div class="component">
+        <h3>Results Display:</h3>
+        <div class="code-block">
+<pre>
+function displayResults() {
+    const resultsDiv = document.getElementById('test-results');
+    
+    testSuites.forEach(suite => {
+        // Create HTML elements for each test suite
+        const suiteDiv = document.createElement('div');
+        suiteDiv.className = 'test-suite';
+        
+        suite.tests.forEach(test => {
+            // Create HTML for each test case
+            const testDiv = document.createElement('div');
+            testDiv.className = `test-case ${test.status}`;
+            testDiv.innerHTML = `${test.status === 'pass' ? '✅' : '❌'} ${test.name}`;
+        });
+        
+        resultsDiv.appendChild(suiteDiv);
+    });
+}
+</pre>
+        </div>
+        <p><strong>What it does:</strong> Converts test results into HTML elements with CSS classes</p>
+    </div>
+
+    <h2>5. 📁 File Structure & Dependencies</h2>
+
+    <div class="component">
+        <h3>What Each File Contains:</h3>
+        <ul>
+            <li><strong>enterprise-test-runner.html</strong> - Complete test framework + UI</li>
+            <li><strong>test-config.js</strong> - Configuration (which files to load)</li>
+            <li><strong>test-files/*.test.js</strong> - Individual test files with your tests</li>
+        </ul>
+        
+        <h3>Dependencies:</h3>
+        <ul>
+            <li>✅ <strong>Browser</strong> - Any modern browser (Chrome, Firefox, Edge, Safari)</li>
+            <li>✅ <strong>HTTP Server</strong> - Your .NET app serves the files</li>
+            <li>❌ <strong>Node.js</strong> - Not needed</li>
+            <li>❌ <strong>npm packages</strong> - Not needed</li>
+            <li>❌ <strong>External libraries</strong> - Not needed</li>
+        </ul>
+    </div>
+
+    <h2>6. 🔧 Key Technologies Used</h2>
+
+    <div class="component">
+        <h3>Core Technologies:</h3>
+        <ul>
+            <li><strong>Vanilla JavaScript (ES6+)</strong> - All logic and functionality</li>
+            <li><strong>Fetch API</strong> - Loading test files dynamically</li>
+            <li><strong>eval()</strong> - Executing test file code</li>
+            <li><strong>DOM API</strong> - Creating and manipulating HTML elements</li>
+            <li><strong>CSS3</strong> - Styling and layout</li>
+            <li><strong>HTML5</strong> - Structure and markup</li>
+        </ul>
+        
+        <h3>JavaScript Features Used:</h3>
+        <ul>
+            <li><strong>async/await</strong> - For loading files</li>
+            <li><strong>Promises</strong> - For HTTP requests</li>
+            <li><strong>try/catch</strong> - For error handling</li>
+            <li><strong>Array methods</strong> - forEach, map, filter</li>
+            <li><strong>Template literals</strong> - For HTML generation</li>
+            <li><strong>Object destructuring</strong> - For clean code</li>
+        </ul>
+    </div>
+
+    <h2>7. 🚀 Why This Approach Works</h2>
+
+    <div class="component">
+        <h3>Advantages:</h3>
+        <ul>
+            <li><strong>Zero Dependencies</strong> - No external libraries to manage</li>
+            <li><strong>Offline Ready</strong> - Works without internet</li>
+            <li><strong>Enterprise Safe</strong> - No security concerns with external CDNs</li>
+            <li><strong>Lightweight</strong> - Minimal code footprint</li>
+            <li><strong>Customizable</strong> - Easy to modify and extend</li>
+            <li><strong>Browser Compatible</strong> - Works in all modern browsers</li>
+        </ul>
+        
+        <h3>How It Compares to Jest:</h3>
+        <table border="1" style="border-collapse: collapse; width: 100%;">
+            <tr>
+                <th>Feature</th>
+                <th>Our Framework</th>
+                <th>Jest</th>
+            </tr>
+            <tr>
+                <td>Test Organization</td>
+                <td>describe() / test()</td>
+                <td>describe() / test()</td>
+            </tr>
+            <tr>
+                <td>Assertions</td>
+                <td>expect().toBe()</td>
+                <td>expect().toBe()</td>
+            </tr>
+            <tr>
+                <td>Dependencies</td>
+                <td>None</td>
+                <td>Node.js + 300+ packages</td>
+            </tr>
+            <tr>
+                <td>File Size</td>
+                <td>~15KB</td>
+                <td>~50MB</td>
+            </tr>
+            <tr>
+                <td>Setup Time</td>
+                <td>0 seconds</td>
+                <td>5-10 minutes</td>
+            </tr>
+        </table>
+    </div>
+
+    <h2>8. 🔍 Code Execution Example</h2>
+
+    <div class="component">
+        <h3>Step-by-Step Execution:</h3>
+        <div class="code-block">
+<pre>
+// 1. Browser loads enterprise-test-runner.html
+// 2. JavaScript initializes:
+let testSuites = [];
+let currentSuite = null;
+
+// 3. window.onload triggers:
+runAllTests();
+
+// 4. For each test file in config:
+await loadTestFile('login.test.js');
+
+// 5. Inside loadTestFile():
+const response = await fetch('test-files/login.test.js');
+const code = await response.text();
+eval(code); // This executes the test file
+
+// 6. Test file code runs:
+describe('Login Form Validation', () => {
+    test('should validate empty username', () => {
+        // Your test code here
+    });
+});
+
+// 7. Results displayed:
+displayResults(); // Creates HTML from test results
+</pre>
+        </div>
+    </div>
+
+    <p><strong>Bottom Line:</strong> It's a custom-built, lightweight testing framework that mimics Jest's API using pure JavaScript, with zero external dependencies!</p>
+
+</body>
+</html>
