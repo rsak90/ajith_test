@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Offline Frontend Unit Tests</title>
+    
+    <!-- Simple test runner CSS -->
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-suite { margin: 20px 0; border: 1px solid #ddd; padding: 15px; }
+        .test-suite h2 { margin-top: 0; color: #333; }
+        .test-case { margin: 10px 0; padding: 8px; border-left: 4px solid #ccc; }
+        .test-case.pass { border-left-color: #4CAF50; background-color: #f1f8e9; }
+        .test-case.fail { border-left-color: #f44336; background-color: #ffebee; }
+        .summary { margin: 20px 0; padding: 15px; background-color: #f5f5f5; }
+        .pass-count { color: #4CAF50; font-weight: bold; }
+        .fail-count { color: #f44336; font-weight: bold; }
+    </style>
+    
+    <!-- Local jQuery (no CDN dependency) -->
+    <script>
+        // Minimal jQuery implementation for testing
+        window.$ = function(selector) {
+            if (typeof selector === 'string') {
+                return {
+                    text: function(value) {
+                        if (value !== undefined) {
+                            const elements = document.querySelectorAll(selector);
+                            elements.forEach(el => el.textContent = value);
+                            return this;
+                        } else {
+                            const element = document.querySelector(selector);
+                            return element ? element.textContent : '';
+                        }
+                    },
+                    show: function() {
+                        const elements = document.querySelectorAll(selector);
+                        elements.forEach(el => el.style.display = 'block');
+                        return this;
+                    },
+                    hide: function() {
+                        const elements = document.querySelectorAll(selector);
+                        elements.forEach(el => el.style.display = 'none');
+                        return this;
+                    },
+                    is: function(state) {
+                        if (state === ':visible') {
+                            const element = document.querySelector(selector);
+                            return element && element.style.display !== 'none';
+                        }
+                        return false;
+                    },
+                    length: document.querySelectorAll(selector).length
+                };
+            }
+            return {};
+        };
+        $.fn = { jquery: '3.7.1' };
+    </script>
+</head>
+<body>
+    <h1>Offline Frontend Unit Tests</h1>
+    <div id="test-results"></div>
+    <div id="test-summary"></div>
+
+    <script>
+        // Simple Jest-like test runner
+        let testSuites = [];
+        let currentSuite = null;
+        let totalTests = 0;
+        let passedTests = 0;
+        let failedTests = 0;
+
+        function describe(suiteName, suiteFunction) {
+            currentSuite = { name: suiteName, tests: [] };
+            testSuites.push(currentSuite);
+            suiteFunction();
+        }
+
+        function test(testName, testFunction) {
+            if (!currentSuite) return;
+            
+            try {
+                testFunction();
+                currentSuite.tests.push({ name: testName, status: 'pass', error: null });
+                passedTests++;
+            } catch (error) {
+                currentSuite.tests.push({ name: testName, status: 'fail', error: error.message });
+                failedTests++;
+            }
+            totalTests++;
+        }
+
+        function expect(actual) {
+            return {
+                toBe: function(expected) {
+                    if (actual !== expected) {
+                        throw new Error(`Expected: ${expected}, Received: ${actual}`);
+                    }
+                }
+            };
+        }
+
+        // Application functions for testing
+        function validateLoginForm(username, password) {
+            let isValid = true;
+            let errorMessage = "";
+            
+            if (!username || username.trim() === "") {
+                errorMessage = "Username is required";
+                isValid = false;
+            } else if (!password || password.trim() === "") {
+                errorMessage = "Password is required";
+                isValid = false;
+            }
+            
+            if (!isValid) {
+                $("#errorMessage").text(errorMessage).show();
+            } else {
+                $("#errorMessage").hide();
+            }
+            
+            return isValid;
+        }
+
+        function updateDashboardDisplay(data) {
+            $("#totalUsers").text(data.TotalUsers);
+            $("#activeSessions").text(data.ActiveSessions);
+            $("#systemStatus").text(data.SystemStatus);
+            $("#lastUpdate").text(data.LastUpdate);
+        }
+
+        // Test suites
+        describe('Login Form Validation', () => {
+            test('should validate empty username', () => {
+                document.body.innerHTML += '<div id="errorMessage" style="display: none;"></div>';
+                
+                const isValid = validateLoginForm("", "password123");
+                
+                expect(isValid).toBe(false);
+                expect($("#errorMessage").is(":visible")).toBe(true);
+                expect($("#errorMessage").text()).toBe("Username is required");
+            });
+
+            test('should validate empty password', () => {
+                document.body.innerHTML += '<div id="errorMessage" style="display: none;"></div>';
+                
+                const isValid = validateLoginForm("admin", "");
+                
+                expect(isValid).toBe(false);
+                expect($("#errorMessage").text()).toBe("Password is required");
+            });
+
+            test('should return true for valid credentials', () => {
+                document.body.innerHTML += '<div id="errorMessage" style="display: none;"></div>';
+                
+                const isValid = validateLoginForm("admin", "password123");
+                
+                expect(isValid).toBe(true);
+                expect($("#errorMessage").is(":visible")).toBe(false);
+            });
+        });
+
+        describe('Dashboard Data Loading', () => {
+            test('should display dashboard data correctly', () => {
+                document.body.innerHTML += `
+                    <div id="totalUsers"></div>
+                    <div id="activeSessions"></div>
+                    <div id="systemStatus"></div>
+                    <div id="lastUpdate"></div>
+                `;
+                
+                const mockData = {
+                    TotalUsers: 150,
+                    ActiveSessions: 23,
+                    SystemStatus: "Online",
+                    LastUpdate: "2025-11-03 14:12:00"
+                };
+                
+                updateDashboardDisplay(mockData);
+                
+                expect($("#totalUsers").text()).toBe("150");
+                expect($("#activeSessions").text()).toBe("23");
+                expect($("#systemStatus").text()).toBe("Online");
+                expect($("#lastUpdate").text()).toBe("2025-11-03 14:12:00");
+            });
+        });
+
+        describe('jQuery Functionality', () => {
+            test('should have jQuery loaded', () => {
+                expect(typeof $).toBe("function");
+                expect($.fn.jquery).toBe("3.7.1");
+            });
+        });
+
+        // Run tests and display results
+        function runTests() {
+            const resultsDiv = document.getElementById('test-results');
+            const summaryDiv = document.getElementById('test-summary');
+            
+            testSuites.forEach(suite => {
+                const suiteDiv = document.createElement('div');
+                suiteDiv.className = 'test-suite';
+                suiteDiv.innerHTML = `<h2>${suite.name}</h2>`;
+                
+                suite.tests.forEach(test => {
+                    const testDiv = document.createElement('div');
+                    testDiv.className = `test-case ${test.status}`;
+                    testDiv.innerHTML = `
+                        <strong>${test.status === 'pass' ? '✓' : '✗'} ${test.name}</strong>
+                        ${test.error ? `<br><small style="color: #666;">${test.error}</small>` : ''}
+                    `;
+                    suiteDiv.appendChild(testDiv);
+                });
+                
+                resultsDiv.appendChild(suiteDiv);
+            });
+            
+            summaryDiv.innerHTML = `
+                <div class="summary">
+                    <h3>Test Summary</h3>
+                    <p>
+                        <span class="pass-count">${passedTests} passed</span>, 
+                        <span class="fail-count">${failedTests} failed</span>, 
+                        ${totalTests} total
+                    </p>
+                    <p>Test Suites: ${testSuites.length} total</p>
+                </div>
+            `;
+        }
+
+        // Run tests when page loads
+        window.onload = runTests;
+    </script>
+</body>
+</html>

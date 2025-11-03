@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Test Writing Guide - Offline Test Runner</title>
+    
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        .code-block { background: #f4f4f4; padding: 15px; border-left: 4px solid #007acc; margin: 10px 0; }
+        .example { background: #f9f9f9; padding: 15px; border: 1px solid #ddd; margin: 15px 0; }
+        h2 { color: #333; border-bottom: 2px solid #007acc; padding-bottom: 5px; }
+        h3 { color: #555; }
+        .test-suite { margin: 20px 0; border: 1px solid #ddd; padding: 15px; }
+        .test-case { margin: 10px 0; padding: 8px; border-left: 4px solid #ccc; }
+        .test-case.pass { border-left-color: #4CAF50; background-color: #f1f8e9; }
+        .test-case.fail { border-left-color: #f44336; background-color: #ffebee; }
+        .summary { margin: 20px 0; padding: 15px; background-color: #f5f5f5; }
+        .pass-count { color: #4CAF50; font-weight: bold; }
+        .fail-count { color: #f44336; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>📝 Test Writing Guide - Offline Test Runner</h1>
+
+    <h2>1. Basic Test Structure</h2>
+    <div class="code-block">
+<pre>
+describe('Feature Name', () => {
+    test('should do something specific', () => {
+        // Arrange - Set up test data and DOM
+        // Act - Execute the function being tested
+        // Assert - Check the results with expect()
+    });
+});
+</pre>
+    </div>
+
+    <h2>2. Available Functions</h2>
+    <div class="example">
+        <h3>Test Organization:</h3>
+        <ul>
+            <li><strong>describe(name, function)</strong> - Groups related tests</li>
+            <li><strong>test(name, function)</strong> - Individual test case</li>
+        </ul>
+        
+        <h3>Assertions:</h3>
+        <ul>
+            <li><strong>expect(actual).toBe(expected)</strong> - Exact equality check</li>
+        </ul>
+        
+        <h3>DOM Helpers:</h3>
+        <ul>
+            <li><strong>$(selector)</strong> - Select DOM elements</li>
+            <li><strong>.text(value)</strong> - Get/set text content</li>
+            <li><strong>.show() / .hide()</strong> - Show/hide elements</li>
+            <li><strong>.is(':visible')</strong> - Check if element is visible</li>
+        </ul>
+    </div>
+
+    <h2>3. Example Tests</h2>
+
+    <div id="test-results"></div>
+    <div id="test-summary"></div>
+
+    <!-- Minimal jQuery and Test Framework -->
+    <script>
+        // Minimal jQuery implementation
+        window.$ = function(selector) {
+            if (typeof selector === 'string') {
+                return {
+                    text: function(value) {
+                        if (value !== undefined) {
+                            const elements = document.querySelectorAll(selector);
+                            elements.forEach(el => el.textContent = value);
+                            return this;
+                        } else {
+                            const element = document.querySelector(selector);
+                            return element ? element.textContent : '';
+                        }
+                    },
+                    show: function() {
+                        const elements = document.querySelectorAll(selector);
+                        elements.forEach(el => el.style.display = 'block');
+                        return this;
+                    },
+                    hide: function() {
+                        const elements = document.querySelectorAll(selector);
+                        elements.forEach(el => el.style.display = 'none');
+                        return this;
+                    },
+                    is: function(state) {
+                        if (state === ':visible') {
+                            const element = document.querySelector(selector);
+                            return element && element.style.display !== 'none';
+                        }
+                        return false;
+                    },
+                    length: document.querySelectorAll(selector).length,
+                    addClass: function(className) {
+                        const elements = document.querySelectorAll(selector);
+                        elements.forEach(el => el.classList.add(className));
+                        return this;
+                    },
+                    removeClass: function(className) {
+                        const elements = document.querySelectorAll(selector);
+                        elements.forEach(el => el.classList.remove(className));
+                        return this;
+                    },
+                    val: function(value) {
+                        if (value !== undefined) {
+                            const elements = document.querySelectorAll(selector);
+                            elements.forEach(el => el.value = value);
+                            return this;
+                        } else {
+                            const element = document.querySelector(selector);
+                            return element ? element.value : '';
+                        }
+                    }
+                };
+            }
+            return {};
+        };
+        $.fn = { jquery: '3.7.1' };
+
+        // Test Framework
+        let testSuites = [];
+        let currentSuite = null;
+        let totalTests = 0;
+        let passedTests = 0;
+        let failedTests = 0;
+
+        function describe(suiteName, suiteFunction) {
+            currentSuite = { name: suiteName, tests: [] };
+            testSuites.push(currentSuite);
+            suiteFunction();
+        }
+
+        function test(testName, testFunction) {
+            if (!currentSuite) return;
+            
+            try {
+                testFunction();
+                currentSuite.tests.push({ name: testName, status: 'pass', error: null });
+                passedTests++;
+            } catch (error) {
+                currentSuite.tests.push({ name: testName, status: 'fail', error: error.message });
+                failedTests++;
+            }
+            totalTests++;
+        }
+
+        function expect(actual) {
+            return {
+                toBe: function(expected) {
+                    if (actual !== expected) {
+                        throw new Error(`Expected: ${expected}, Received: ${actual}`);
+                    }
+                },
+                toEqual: function(expected) {
+                    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+                        throw new Error(`Expected: ${JSON.stringify(expected)}, Received: ${JSON.stringify(actual)}`);
+                    }
+                },
+                toContain: function(expected) {
+                    if (!actual.includes(expected)) {
+                        throw new Error(`Expected "${actual}" to contain "${expected}"`);
+                    }
+                },
+                toBeGreaterThan: function(expected) {
+                    if (actual <= expected) {
+                        throw new Error(`Expected ${actual} to be greater than ${expected}`);
+                    }
+                },
+                toBeTruthy: function() {
+                    if (!actual) {
+                        throw new Error(`Expected ${actual} to be truthy`);
+                    }
+                },
+                toBeFalsy: function() {
+                    if (actual) {
+                        throw new Error(`Expected ${actual} to be falsy`);
+                    }
+                }
+            };
+        }
+
+        // Example functions to test
+        function calculateTotal(price, tax) {
+            return price + (price * tax);
+        }
+
+        function validateEmail(email) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return emailRegex.test(email);
+        }
+
+        function toggleVisibility(elementId) {
+            const element = document.getElementById(elementId);
+            if (element.style.display === 'none') {
+                element.style.display = 'block';
+            } else {
+                element.style.display = 'none';
+            }
+        }
+
+        // EXAMPLE TESTS - Copy these patterns for your own tests!
+
+        describe('Math Functions', () => {
+            test('should calculate total with tax correctly', () => {
+                // Arrange
+                const price = 100;
+                const tax = 0.1; // 10%
+                
+                // Act
+                const result = calculateTotal(price, tax);
+                
+                // Assert
+                expect(result).toBe(110);
+            });
+
+            test('should handle zero tax', () => {
+                // Arrange
+                const price = 50;
+                const tax = 0;
+                
+                // Act
+                const result = calculateTotal(price, tax);
+                
+                // Assert
+                expect(result).toBe(50);
+            });
+        });
+
+        describe('Email Validation', () => {
+            test('should validate correct email format', () => {
+                // Arrange
+                const validEmail = 'user@example.com';
+                
+                // Act
+                const isValid = validateEmail(validEmail);
+                
+                // Assert
+                expect(isValid).toBe(true);
+            });
+
+            test('should reject invalid email format', () => {
+                // Arrange
+                const invalidEmail = 'invalid-email';
+                
+                // Act
+                const isValid = validateEmail(invalidEmail);
+                
+                // Assert
+                expect(isValid).toBe(false);
+            });
+        });
+
+        describe('DOM Manipulation', () => {
+            test('should toggle element visibility', () => {
+                // Arrange - Create test element
+                document.body.innerHTML += '<div id="testElement" style="display: block;">Test Content</div>';
+                
+                // Act
+                toggleVisibility('testElement');
+                
+                // Assert
+                expect($('#testElement').is(':visible')).toBe(false);
+                
+                // Act again
+                toggleVisibility('testElement');
+                
+                // Assert
+                expect($('#testElement').is(':visible')).toBe(true);
+            });
+
+            test('should update text content', () => {
+                // Arrange
+                document.body.innerHTML += '<div id="textElement">Original Text</div>';
+                
+                // Act
+                $('#textElement').text('New Text');
+                
+                // Assert
+                expect($('#textElement').text()).toBe('New Text');
+            });
+        });
+
+        describe('Form Validation Example', () => {
+            test('should validate required fields', () => {
+                // Arrange - Create form elements
+                document.body.innerHTML += `
+                    <form id="testForm">
+                        <input id="username" type="text" value="" />
+                        <input id="password" type="password" value="" />
+                        <div id="errorMsg" style="display: none;"></div>
+                    </form>
+                `;
+                
+                // Act - Test empty username
+                const username = $('#username').val();
+                const password = $('#password').val('test123');
+                
+                if (!username) {
+                    $('#errorMsg').text('Username is required').show();
+                }
+                
+                // Assert
+                expect($('#errorMsg').text()).toBe('Username is required');
+                expect($('#errorMsg').is(':visible')).toBe(true);
+            });
+        });
+
+        // Run tests and display results
+        function runTests() {
+            const resultsDiv = document.getElementById('test-results');
+            const summaryDiv = document.getElementById('test-summary');
+            
+            testSuites.forEach(suite => {
+                const suiteDiv = document.createElement('div');
+                suiteDiv.className = 'test-suite';
+                suiteDiv.innerHTML = `<h2>${suite.name}</h2>`;
+                
+                suite.tests.forEach(test => {
+                    const testDiv = document.createElement('div');
+                    testDiv.className = `test-case ${test.status}`;
+                    testDiv.innerHTML = `
+                        <strong>${test.status === 'pass' ? '✓' : '✗'} ${test.name}</strong>
+                        ${test.error ? `<br><small style="color: #666;">${test.error}</small>` : ''}
+                    `;
+                    suiteDiv.appendChild(testDiv);
+                });
+                
+                resultsDiv.appendChild(suiteDiv);
+            });
+            
+            summaryDiv.innerHTML = `
+                <div class="summary">
+                    <h3>Test Results</h3>
+                    <p>
+                        <span class="pass-count">${passedTests} passed</span>, 
+                        <span class="fail-count">${failedTests} failed</span>, 
+                        ${totalTests} total
+                    </p>
+                    <p>Test Suites: ${testSuites.length} total</p>
+                </div>
+            `;
+        }
+
+        // Run tests when page loads
+        window.onload = runTests;
+    </script>
+
+    <h2>4. Test Writing Patterns</h2>
+    
+    <div class="example">
+        <h3>Pattern 1: Function Testing</h3>
+        <div class="code-block">
+<pre>
+test('should calculate correctly', () => {
+    // Arrange
+    const input1 = 10;
+    const input2 = 5;
+    
+    // Act
+    const result = myFunction(input1, input2);
+    
+    // Assert
+    expect(result).toBe(15);
+});
+</pre>
+        </div>
+    </div>
+
+    <div class="example">
+        <h3>Pattern 2: DOM Testing</h3>
+        <div class="code-block">
+<pre>
+test('should update DOM element', () => {
+    // Arrange - Create test DOM
+    document.body.innerHTML += '&lt;div id="test"&gt;Original&lt;/div&gt;';
+    
+    // Act
+    $('#test').text('Updated');
+    
+    // Assert
+    expect($('#test').text()).toBe('Updated');
+});
+</pre>
+        </div>
+    </div>
+
+    <div class="example">
+        <h3>Pattern 3: Form Validation Testing</h3>
+        <div class="code-block">
+<pre>
+test('should validate form input', () => {
+    // Arrange
+    document.body.innerHTML += `
+        &lt;input id="email" type="email" value="invalid-email" /&gt;
+        &lt;div id="error" style="display: none;"&gt;&lt;/div&gt;
+    `;
+    
+    // Act
+    const email = $('#email').val();
+    const isValid = validateEmail(email);
+    
+    if (!isValid) {
+        $('#error').text('Invalid email').show();
+    }
+    
+    // Assert
+    expect(isValid).toBe(false);
+    expect($('#error').is(':visible')).toBe(true);
+});
+</pre>
+        </div>
+    </div>
+
+    <h2>5. Available Assertions</h2>
+    <div class="example">
+        <ul>
+            <li><strong>expect(value).toBe(expected)</strong> - Exact equality</li>
+            <li><strong>expect(value).toEqual(expected)</strong> - Deep equality (objects/arrays)</li>
+            <li><strong>expect(string).toContain(substring)</strong> - String contains</li>
+            <li><strong>expect(number).toBeGreaterThan(value)</strong> - Number comparison</li>
+            <li><strong>expect(value).toBeTruthy()</strong> - Truthy check</li>
+            <li><strong>expect(value).toBeFalsy()</strong> - Falsy check</li>
+        </ul>
+    </div>
+
+    <h2>6. Tips for Writing Good Tests</h2>
+    <div class="example">
+        <ol>
+            <li><strong>Use descriptive test names</strong> - "should validate empty username" not "test1"</li>
+            <li><strong>Follow Arrange-Act-Assert pattern</strong> - Set up, execute, verify</li>
+            <li><strong>Test one thing per test</strong> - Keep tests focused</li>
+            <li><strong>Clean up DOM</strong> - Each test should start with clean state</li>
+            <li><strong>Test edge cases</strong> - Empty strings, null values, boundary conditions</li>
+        </ol>
+    </div>
+
+</body>
+</html>
